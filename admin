@@ -1,0 +1,1140 @@
+```javascript
+// ================================
+// FULL BACCARAT ENGINE (Node + Frontend Ready)
+// Author: ChatGPT
+// ================================
+
+// ======================================================
+// 1. CARD + DECK
+// ======================================================
+
+const SUITS = ["♠", "♥", "♦", "♣"];
+const RANKS = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"];
+
+class Deck {
+  constructor(numDecks = 8) {
+    this.cards = [];
+
+    for (let d = 0; d < numDecks; d++) {
+      for (const suit of SUITS) {
+        for (const rank of RANKS) {
+          this.cards.push({
+            suit,
+            rank
+          });
+        }
+      }
+    }
+
+    this.shuffle();
+  }
+
+  shuffle() {
+    for (let i = this.cards.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [this.cards[i], this.cards[j]] = [this.cards[j], this.cards[i]];
+    }
+  }
+
+  draw() {
+    return this.cards.pop();
+  }
+}
+
+// ======================================================
+// 2. BACCARAT VALUES
+// ======================================================
+
+function baccaratValue(card) {
+  if (["10", "J", "Q", "K"].includes(card.rank)) return 0;
+  if (card.rank === "A") return 1;
+  return parseInt(card.rank);
+}
+
+function handTotal(hand) {
+  return hand.reduce((sum, c) => sum + baccaratValue(c), 0) % 10;
+}
+
+// ======================================================
+// 3. BACCARAT GAME ENGINE
+// ======================================================
+
+class BaccaratGame {
+  constructor() {
+    this.deck = new Deck(8);
+
+    this.player = [];
+    this.banker = [];
+
+    this.logs = [];
+    this.result = null;
+  }
+
+  log(msg) {
+    console.log(msg);
+    this.logs.push(msg);
+  }
+
+  dealInitial() {
+    this.player.push(this.deck.draw());
+    this.banker.push(this.deck.draw());
+
+    this.player.push(this.deck.draw());
+    this.banker.push(this.deck.draw());
+
+    this.log("Initial cards dealt");
+  }
+
+  isNatural() {
+    const p = handTotal(this.player);
+    const b = handTotal(this.banker);
+
+    return p >= 8 || b >= 8;
+  }
+
+  playerDrawRule() {
+    return handTotal(this.player) <= 5;
+  }
+
+  bankerDrawRule(playerThirdCard) {
+    const bankerTotal = handTotal(this.banker);
+
+    if (playerThirdCard == null) {
+      return bankerTotal <= 5;
+    }
+
+    const playerThirdValue = baccaratValue(playerThirdCard);
+
+    if (bankerTotal <= 2) return true;
+
+    if (bankerTotal === 3) {
+      return playerThirdValue !== 8;
+    }
+
+    if (bankerTotal === 4) {
+      return [2,3,4,5,6,7].includes(playerThirdValue);
+    }
+
+    if (bankerTotal === 5) {
+      return [4,5,6,7].includes(playerThirdValue);
+    }
+
+    if (bankerTotal === 6) {
+      return [6,7].includes(playerThirdValue);
+    }
+
+    return false;
+  }
+
+  play() {
+    this.dealInitial();
+
+    let playerThird = null;
+
+    // NATURAL
+    if (this.isNatural()) {
+      this.log("Natural detected");
+      return this.finish();
+    }
+
+    // PLAYER DRAW
+    if (this.playerDrawRule()) {
+      playerThird = this.deck.draw();
+      this.player.push(playerThird);
+
+      this.log(`Player draws ${playerThird.rank}${playerThird.suit}`);
+    } else {
+      this.log("Player stands");
+    }
+
+    // BANKER DRAW
+    if (this.bankerDrawRule(playerThird)) {
+      const card = this.deck.draw();
+
+      this.banker.push(card);
+
+      this.log(`Banker draws ${card.rank}${card.suit}`);
+    } else {
+      this.log("Banker stands");
+    }
+
+    return this.finish();
+  }
+
+  finish() {
+    const p = handTotal(this.player);
+    const b = handTotal(this.banker);
+
+    if (p > b) {
+      this.result = "PLAYER";
+    } else if (b > p) {
+      this.result = "BANKER";
+    } else {
+      this.result = "TIE";
+    }
+
+    this.log(`PLAYER=${p} BANKER=${b}`);
+    this.log(`WINNER: ${this.result}`);
+
+    return {
+      player: this.player,
+      banker: this.banker,
+      playerTotal: p,
+      bankerTotal: b,
+      winner: this.result,
+      logs: this.logs
+    };
+  }
+}
+
+// ======================================================
+// 4. TEST
+// ======================================================
+
+const game = new BaccaratGame();
+
+console.log(game.play());
+
+
+// ======================================================
+// 5. ROADMAP ENGINE
+// ======================================================
+
+class Roadmap {
+  constructor() {
+    this.results = [];
+  }
+
+  add(result) {
+    this.results.push(result);
+  }
+
+  beadRoad() {
+    return this.results.map((r, i) => ({
+      index: i,
+      result: r
+    }));
+  }
+
+  bigRoad() {
+    const columns = [];
+    let currentCol = [];
+
+    for (const r of this.results) {
+      if (currentCol.length === 0) {
+        currentCol.push(r);
+      } else {
+        const last = currentCol[0];
+
+        if (r === last) {
+          currentCol.push(r);
+        } else {
+          columns.push(currentCol);
+          currentCol = [r];
+        }
+      }
+    }
+
+    if (currentCol.length) columns.push(currentCol);
+
+    return columns;
+  }
+}
+
+
+// ======================================================
+// 6. WIN RATES
+// ======================================================
+
+const HOUSE_EDGE = {
+  PLAYER: "1.24%",
+  BANKER: "1.06%",
+  TIE: "14.36%"
+};
+
+
+// ======================================================
+// 7. SOCKET.IO BACKEND
+// ======================================================
+
+// npm i express socket.io cors
+
+/*
+const express = require("express");
+const http = require("http");
+const { Server } = require("socket.io");
+const cors = require("cors");
+
+const app = express();
+
+app.use(cors());
+
+const server = http.createServer(app);
+
+const io = new Server(server, {
+  cors: {
+    origin: "*"
+  }
+});
+
+const rooms = {};
+
+io.on("connection", socket => {
+
+  console.log("USER CONNECTED", socket.id);
+
+  socket.on("join-table", tableId => {
+
+    socket.join(tableId);
+
+    if (!rooms[tableId]) {
+      rooms[tableId] = {
+        game: new BaccaratGame(),
+        roadmap: new Roadmap()
+      };
+    }
+
+    socket.emit("joined", tableId);
+  });
+
+  socket.on("deal", tableId => {
+
+    const room = rooms[tableId];
+
+    room.game = new BaccaratGame();
+
+    const result = room.game.play();
+
+    room.roadmap.add(result.winner);
+
+    io.to(tableId).emit("game-result", {
+      result,
+      roadmap: room.roadmap.bigRoad()
+    });
+  });
+
+  socket.on("disconnect", () => {
+    console.log("DISCONNECTED");
+  });
+});
+
+server.listen(3000, () => {
+  console.log("SERVER RUNNING");
+});
+*/
+
+
+// ======================================================
+// 8. FRONTEND ANIMATION
+// ======================================================
+
+// CSS
+
+/*
+.card {
+  width: 80px;
+  height: 120px;
+  border-radius: 12px;
+  background: white;
+  color: black;
+  animation: dealCard .4s ease;
+}
+
+@keyframes dealCard {
+  from {
+    transform: translateY(-40px) scale(.7);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+*/
+
+
+// ======================================================
+// 9. AI DEALER
+// ======================================================
+
+function dealerNarration(result) {
+
+  const p = result.playerTotal;
+  const b = result.bankerTotal;
+
+  if (result.winner === "PLAYER") {
+    return `Player wins with ${p} points`;
+  }
+
+  if (result.winner === "BANKER") {
+    return `Banker wins with ${b} points`;
+  }
+
+  return `Tie game at ${p}`;
+}
+
+
+// ======================================================
+// 10. AUTO PLAY
+// ======================================================
+
+function autoPlay(rounds = 1000) {
+
+  let stats = {
+    PLAYER: 0,
+    BANKER: 0,
+    TIE: 0
+  };
+
+  for (let i = 0; i < rounds; i++) {
+
+    const game = new BaccaratGame();
+
+    const result = game.play();
+
+    stats[result.winner]++;
+  }
+
+  return stats;
+}
+
+console.log(autoPlay(10000));
+
+```
+
+
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>AI Baccarat Dealer</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+<style>
+
+*{
+    margin:0;
+    padding:0;
+    box-sizing:border-box;
+    font-family:'Poppins',sans-serif;
+}
+
+body{
+    background:#050505;
+    color:white;
+    overflow:hidden;
+}
+
+/* =========================
+TOP BAR
+========================= */
+
+.topbar{
+    height:70px;
+    background:#0d0d0d;
+    border-bottom:1px solid rgba(255,255,255,.08);
+
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+
+    padding:0 25px;
+}
+
+.logo{
+    display:flex;
+    align-items:center;
+    gap:12px;
+}
+
+.logo-circle{
+    width:45px;
+    height:45px;
+    border-radius:50%;
+    background:#d4a73c;
+
+    display:flex;
+    align-items:center;
+    justify-content:center;
+
+    color:black;
+    font-weight:700;
+    font-size:20px;
+}
+
+.logo h1{
+    font-size:22px;
+    color:#f5d37a;
+}
+
+.menu{
+    display:flex;
+    gap:12px;
+}
+
+.icon-btn{
+    width:42px;
+    height:42px;
+    border-radius:12px;
+    background:#151515;
+    border:1px solid rgba(255,255,255,.08);
+
+    display:flex;
+    align-items:center;
+    justify-content:center;
+
+    cursor:pointer;
+}
+
+/* =========================
+MAIN
+========================= */
+
+.main{
+    height:calc(100vh - 70px);
+    display:flex;
+}
+
+/* =========================
+LEFT PANEL
+========================= */
+
+.left-panel{
+    width:320px;
+    background:#0b0b0b;
+    border-right:1px solid rgba(255,255,255,.08);
+    padding:20px;
+}
+
+.panel{
+    background:#111;
+    border-radius:20px;
+    border:1px solid rgba(255,255,255,.07);
+    padding:20px;
+}
+
+.panel h2{
+    margin-bottom:20px;
+    color:#f4c14d;
+}
+
+.stat{
+    display:flex;
+    justify-content:space-between;
+    margin-bottom:14px;
+}
+
+.player-color{
+    color:#3485ff;
+}
+
+.banker-color{
+    color:#ff4a4a;
+}
+
+.tie-color{
+    color:#4bff74;
+}
+
+/* =========================
+CENTER
+========================= */
+
+.center{
+    flex:1;
+    position:relative;
+    overflow:hidden;
+}
+
+/* background */
+
+.bg{
+    position:absolute;
+    inset:0;
+
+    background:
+    radial-gradient(circle at center,
+    rgba(10,80,30,.85),
+    #04120a 60%);
+
+    z-index:1;
+}
+
+/* dealer */
+
+.dealer-area{
+    position:absolute;
+    top:40px;
+    left:50%;
+    transform:translateX(-50%);
+    z-index:5;
+
+    text-align:center;
+}
+
+.dealer-img{
+    width:420px;
+    animation:float 3s ease-in-out infinite;
+    filter:drop-shadow(0 20px 40px rgba(0,0,0,.7));
+}
+
+@keyframes float{
+    0%{ transform:translateY(0px); }
+    50%{ transform:translateY(-10px); }
+    100%{ transform:translateY(0px); }
+}
+
+/* =========================
+TABLE
+========================= */
+
+.table{
+    position:absolute;
+    bottom:170px;
+    left:50%;
+    transform:translateX(-50%);
+
+    width:1000px;
+    height:330px;
+
+    border-radius:40px 40px 100px 100px;
+
+    background:
+    radial-gradient(circle at center,
+    #10652d,
+    #052013);
+
+    border:4px solid #c89b3c;
+
+    z-index:4;
+
+    box-shadow:
+    0 30px 60px rgba(0,0,0,.7),
+    inset 0 0 80px rgba(0,0,0,.6);
+}
+
+.table-line{
+    position:absolute;
+    left:50%;
+    top:40px;
+    width:2px;
+    height:240px;
+    background:#c89b3c;
+}
+
+.player-zone,
+.banker-zone{
+    position:absolute;
+    top:30px;
+    width:50%;
+    text-align:center;
+}
+
+.player-zone{
+    left:0;
+}
+
+.banker-zone{
+    right:0;
+}
+
+.zone-title{
+    font-size:48px;
+    font-weight:700;
+    margin-bottom:20px;
+}
+
+.player-zone .zone-title{
+    color:#2f7dff;
+}
+
+.banker-zone .zone-title{
+    color:#ff4343;
+}
+
+/* cards */
+
+.cards{
+    display:flex;
+    justify-content:center;
+    gap:14px;
+}
+
+.card{
+    width:90px;
+    height:130px;
+    background:white;
+    border-radius:14px;
+
+    color:black;
+
+    display:flex;
+    align-items:center;
+    justify-content:center;
+
+    font-size:34px;
+    font-weight:700;
+
+    animation:deal .5s ease;
+}
+
+@keyframes deal{
+    from{
+        opacity:0;
+        transform:translateY(-60px) rotate(-12deg);
+    }
+
+    to{
+        opacity:1;
+        transform:translateY(0) rotate(0);
+    }
+}
+
+.score{
+    width:60px;
+    height:60px;
+    border-radius:16px;
+
+    display:flex;
+    align-items:center;
+    justify-content:center;
+
+    margin:18px auto 0;
+
+    font-size:28px;
+    font-weight:700;
+}
+
+.player-score{
+    background:#1d5ed8;
+}
+
+.banker-score{
+    background:#cc3030;
+}
+
+/* =========================
+CHIPS
+========================= */
+
+.chips{
+    position:absolute;
+    bottom:80px;
+    left:50%;
+    transform:translateX(-50%);
+
+    display:flex;
+    gap:18px;
+    z-index:6;
+}
+
+.chip{
+    width:74px;
+    height:74px;
+    border-radius:50%;
+    background:#222;
+    border:6px dashed white;
+
+    display:flex;
+    align-items:center;
+    justify-content:center;
+
+    cursor:pointer;
+    font-weight:700;
+
+    transition:.25s;
+}
+
+.chip:hover{
+    transform:translateY(-10px) scale(1.05);
+}
+
+/* =========================
+BET BUTTONS
+========================= */
+
+.bet-buttons{
+    position:absolute;
+    bottom:10px;
+    left:50%;
+    transform:translateX(-50%);
+
+    display:flex;
+    gap:20px;
+    z-index:7;
+}
+
+.bet-btn{
+    width:240px;
+    height:72px;
+    border:none;
+    border-radius:22px;
+
+    font-size:28px;
+    font-weight:700;
+    color:white;
+
+    cursor:pointer;
+    transition:.25s;
+}
+
+.bet-btn:hover{
+    transform:scale(1.05);
+}
+
+.player-btn{
+    background:#1f65ff;
+}
+
+.tie-btn{
+    background:#24964d;
+}
+
+.banker-btn{
+    background:#d63a3a;
+}
+
+/* =========================
+CHAT
+========================= */
+
+.chat{
+    width:350px;
+    background:#0a0a0a;
+    border-left:1px solid rgba(255,255,255,.08);
+
+    display:flex;
+    flex-direction:column;
+}
+
+.chat-header{
+    height:70px;
+    display:flex;
+    align-items:center;
+    padding:0 20px;
+    border-bottom:1px solid rgba(255,255,255,.08);
+}
+
+.chat-body{
+    flex:1;
+    padding:20px;
+    overflow:auto;
+}
+
+.msg{
+    margin-bottom:18px;
+    background:#151515;
+    padding:14px;
+    border-radius:16px;
+}
+
+.dealer{
+    color:#f5d37a;
+}
+
+.chat-input{
+    padding:18px;
+    border-top:1px solid rgba(255,255,255,.08);
+}
+
+.chat-input input{
+    width:100%;
+    height:52px;
+    border:none;
+    outline:none;
+    border-radius:14px;
+    background:#181818;
+    color:white;
+    padding:0 15px;
+}
+
+/* =========================
+ROADMAP
+========================= */
+
+.roadmap{
+    position:absolute;
+    bottom:0;
+    left:0;
+    right:0;
+
+    height:120px;
+    background:#080808;
+    border-top:1px solid rgba(255,255,255,.08);
+
+    z-index:8;
+
+    display:flex;
+    align-items:center;
+    gap:10px;
+
+    padding:0 20px;
+}
+
+.road-cell{
+    width:32px;
+    height:32px;
+    border-radius:50%;
+}
+
+.b{
+    background:#d83b3b;
+}
+
+.p{
+    background:#2967ff;
+}
+
+.t{
+    background:#2dc15a;
+}
+
+</style>
+</head>
+<body>
+
+<div class="topbar">
+
+    <div class="logo">
+        <div class="logo-circle">AI</div>
+        <h1>AI Casino Hub</h1>
+    </div>
+
+    <div class="menu">
+        <div class="icon-btn">⚙</div>
+        <div class="icon-btn">🔊</div>
+        <div class="icon-btn">💬</div>
+    </div>
+
+</div>
+
+<div class="main">
+
+    <!-- LEFT -->
+
+    <div class="left-panel">
+
+        <div class="panel">
+
+            <h2>Thông Tin</h2>
+
+            <div class="stat">
+                <span>Player thắng</span>
+                <span class="player-color">23</span>
+            </div>
+
+            <div class="stat">
+                <span>Banker thắng</span>
+                <span class="banker-color">30</span>
+            </div>
+
+            <div class="stat">
+                <span>Hòa</span>
+                <span class="tie-color">5</span>
+            </div>
+
+            <div class="stat">
+                <span>Tỷ lệ Player</span>
+                <span>39.2%</span>
+            </div>
+
+            <div class="stat">
+                <span>Tỷ lệ Banker</span>
+                <span>51.1%</span>
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- CENTER -->
+
+    <div class="center">
+
+        <div class="bg"></div>
+
+        <!-- DEALER -->
+
+        <div class="dealer-area">
+
+            <img
+            class="dealer-img"
+            src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=1200&auto=format&fit=crop"
+            />
+
+        </div>
+
+        <!-- TABLE -->
+
+        <div class="table">
+
+            <div class="table-line"></div>
+
+            <!-- PLAYER -->
+
+            <div class="player-zone">
+
+                <div class="zone-title">PLAYER</div>
+
+                <div class="cards">
+
+                    <div class="card">2♠</div>
+                    <div class="card">5♠</div>
+
+                </div>
+
+                <div class="score player-score">7</div>
+
+            </div>
+
+            <!-- BANKER -->
+
+            <div class="banker-zone">
+
+                <div class="zone-title">BANKER</div>
+
+                <div class="cards">
+
+                    <div class="card">3♣</div>
+                    <div class="card">A♥</div>
+
+                </div>
+
+                <div class="score banker-score">4</div>
+
+            </div>
+
+        </div>
+
+        <!-- CHIPS -->
+
+        <div class="chips">
+
+            <div class="chip">10K</div>
+            <div class="chip">50K</div>
+            <div class="chip">100K</div>
+            <div class="chip">500K</div>
+            <div class="chip">1M</div>
+
+        </div>
+
+        <!-- BET -->
+
+        <div class="bet-buttons">
+
+            <button class="bet-btn player-btn">
+                Player
+            </button>
+
+            <button class="bet-btn tie-btn">
+                Hòa
+            </button>
+
+            <button class="bet-btn banker-btn">
+                Banker
+            </button>
+
+        </div>
+
+        <!-- ROADMAP -->
+
+        <div class="roadmap">
+
+            <div class="road-cell b"></div>
+            <div class="road-cell p"></div>
+            <div class="road-cell b"></div>
+            <div class="road-cell b"></div>
+            <div class="road-cell p"></div>
+            <div class="road-cell t"></div>
+            <div class="road-cell b"></div>
+            <div class="road-cell p"></div>
+            <div class="road-cell p"></div>
+            <div class="road-cell b"></div>
+            <div class="road-cell p"></div>
+
+        </div>
+
+    </div>
+
+    <!-- CHAT -->
+
+    <div class="chat">
+
+        <div class="chat-header">
+            Live Chat
+        </div>
+
+        <div class="chat-body">
+
+            <div class="msg dealer">
+                AI Dealer: Chúc quý khách may mắn 🍀
+            </div>
+
+            <div class="msg">
+                User123: Banker đang đỏ quá
+            </div>
+
+            <div class="msg">
+                CasinoVIP: Theo cầu Player
+            </div>
+
+        </div>
+
+        <div class="chat-input">
+
+            <input placeholder="Nhập tin nhắn..." />
+
+        </div>
+
+    </div>
+
+</div>
+
+<script>
+
+// SIMPLE ANIMATION DEMO
+
+const cards = document.querySelectorAll('.card');
+
+cards.forEach((card,index)=>{
+
+    card.style.animationDelay = `${index * .15}s`;
+
+});
+
+// fake dealer speech
+
+const dealerMessages = [
+
+    "Mời quý khách đặt cược",
+    "Banker thắng",
+    "Player thắng",
+    "Hòa",
+    "Chúc may mắn"
+];
+
+setInterval(()=>{
+
+    const msg =
+    dealerMessages[
+        Math.floor(Math.random()*dealerMessages.length)
+    ];
+
+    const div = document.createElement('div');
+
+    div.className = 'msg dealer';
+
+    div.innerText = 'AI Dealer: ' + msg;
+
+    document.querySelector('.chat-body').prepend(div);
+
+},5000);
+
+</script>
+
+</body>
+</html>
